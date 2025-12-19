@@ -1,4 +1,8 @@
 {
-  "name": "theia-core",
-  "private": true
+"name": "theia-core",
+"private": true,
+"type": "commonjs",
+"scripts": {
+"start": "node server.js"
+}
 }
