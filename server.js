@@ -5,11 +5,11 @@ res.writeHead(200, { 'Content-Type': 'application/json' });
 res.end(JSON.stringify({
 status: 'ok',
 service: 'theia-core',
-ts: new date().toISOString()
+ts: new Date().toISOString()
 }));
 return;
 }
-res.writehead(404, { 'Content-Type': 'text/plain' });
+res.writeHead(404, { 'Content-Type': 'text/plain' });
 res.end('Not Found');
 });
 const port = process.env.PORT || 3000;
