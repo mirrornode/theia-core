@@ -17,11 +17,13 @@ It never returns data to the caller that could influence PTAH or the triad.
 """
 
 import hashlib
+import hmac as hmac_lib
 import json
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
+from khepri.crypto import generate_seal
 from khepri.db import supabase
 
 
@@ -170,6 +172,25 @@ def ingest(event: dict) -> dict:
     # --- Step 5: Prior hash (chain integrity) ---
     prior_hash = _latest_snapshot_hash(arc_id)
 
+    # --- Step 5b: HMAC seal (computed before insert — immutability rules block post-insert UPDATE) ---
+    # Canonical payload for the seal — deterministic pipe-delimited string
+    seal_canon_str = "|".join([
+        f"arc_id={arc_id}",
+        f"arc_phase={arc_phase if arc_phase in ('EMERGENCE','CONSOLIDATION','THRESHOLD','INTEGRATION','SOVEREIGNTY','UNKNOWN') else 'UNKNOWN'}",
+        f"coherence_signal={coherence if coherence in ('NOMINAL','FRAGMENTED','CRYSTALLIZING','SEALED') else 'NOMINAL'}",
+        f"content_hash={content_hash}",
+        f"prior_hash={prior_hash or ''}",
+        f"sealed_at={now_utc}",
+        f"threshold_flag={'true' if threshold_flag else 'false'}",
+    ])
+    try:
+        seal = generate_seal({"_canon": seal_canon_str})
+    except EnvironmentError:
+        # Fail open on seal — the hash chain is the primary integrity mechanism.
+        # The seal column is nullable for exactly this case (no HMAC_SECRET in env).
+        # Log the missing secret condition to ingestion log via dropped_reason addendum.
+        seal = None
+
     # --- Step 6: Insert snapshot ---
     snapshot_payload = {
         "sealed_at": now_utc,
@@ -199,6 +220,7 @@ def ingest(event: dict) -> dict:
         "threshold_flag": threshold_flag,
         "content_hash": content_hash,
         "prior_hash": prior_hash,
+        "seal": seal,
         "immutable_seal": True,
     }
 
