@@ -34,6 +34,8 @@ def test_clean_manifest_clears_for_independent_review():
     result = verify_target(manifest())
     assert result.verdict.value == "CLEAR_FOR_INDEPENDENT_REVIEW"
     assert result.authority_effect == "NONE"
+    assert "immutable-identifier-shape" in result.checks_run
+    assert "status-path-set-agreement" in result.checks_run
 
 
 @pytest.mark.parametrize(
@@ -88,6 +90,12 @@ def test_traversal_fails_closed():
     assert "THEA-PATH-001" in ids(result)
 
 
+def test_unknown_operation_fails_closed():
+    result = verify_target(manifest(changed_files=[{"path": "src/a.py", "operation": "FLY"}]))
+    assert result.verdict.value == "HOLD"
+    assert "THEA-OP-001" in ids(result)
+
+
 def test_destination_collision_fails_closed():
     result = verify_target(
         manifest(
@@ -105,19 +113,31 @@ def test_verification_artifact_requires_positive_containment():
     assert "THEA-VERIFY-003" in ids(result)
 
 
+def test_verification_root_must_not_cover_implementation_surface():
+    result = verify_target(
+        manifest(
+            changed_files=[{"path": "src/a.py", "operation": "MODIFY"}],
+            verification_artifact_root="src",
+            verification_artifacts=["src/thea/report.json"],
+        )
+    )
+    assert result.verdict.value == "HOLD"
+    assert "THEA-VERIFY-006" in ids(result)
+
+
 def test_external_effect_does_not_inherit_into_verification():
     result = verify_target(manifest(external_effects=["POST https://prod.example/deploy"]))
     assert "THEA-VERIFY-004" in ids(result)
 
 
-def test_raw_parsed_status_must_agree():
+def test_supplied_status_path_sets_must_agree():
     result = verify_target(
         manifest(raw_status_paths=["src/a.py"], parsed_status_paths=["src/b.py"])
     )
     assert "THEA-EVIDENCE-002" in ids(result)
 
 
-def test_handoff_must_carry_authorization_lineage():
+def test_handoff_must_carry_authorization_lineage_reference():
     result = verify_target(manifest(handoff_changed_paths=["src/a.py"]))
     assert "THEA-LINEAGE-002" in ids(result)
 
