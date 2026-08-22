@@ -34,8 +34,14 @@ def test_clean_manifest_clears_for_independent_review():
     result = verify_target(manifest())
     assert result.verdict.value == "CLEAR_FOR_INDEPENDENT_REVIEW"
     assert result.authority_effect == "NONE"
+    assert result.claim_limit == "SUPPLIED_MANIFEST_SEMANTICS_ONLY"
     assert "immutable-identifier-shape" in result.checks_run
     assert "status-path-set-agreement" in result.checks_run
+
+
+def test_manifest_boolean_is_strict_not_truthy_string():
+    with pytest.raises(ValueError, match="verification_authorized must be a boolean"):
+        manifest(verification_authorized="false")
 
 
 @pytest.mark.parametrize(
