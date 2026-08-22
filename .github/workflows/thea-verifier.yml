@@ -6,6 +6,7 @@ on:
       - "thea/**"
       - "tests/test_thea_verifier.py"
       - "docs/THEA_VERIFIER_V0_1.md"
+      - "REPO_MAP.md"
       - ".github/workflows/thea-verifier.yml"
 
 permissions:
