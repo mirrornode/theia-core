@@ -1,4 +1,8 @@
+import pytest
+
 from thea.models import TargetManifest
+from thea.path_policy import PathPolicyError, normalize_repo_path, validate_artifact_path
+from thea.probe_harness import ProbeSuite
 from thea.verifier import verify_target
 
 
@@ -32,6 +36,50 @@ def test_clean_manifest_clears_for_independent_review():
     assert result.authority_effect == "NONE"
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "../../other-repo/secret.ts",
+        "a/../../../etc/passwd",
+        "src/../../escape.ts",
+        ".git/config",
+        ".github/workflows/audit.yml",
+        "src/x\ny.ts",
+        "src/dir/",
+        "/etc/passwd",
+        "~/secrets",
+        "C:/Windows/System32",
+        "src//a.ts",
+        "./src/a.ts",
+        "src/./a.ts",
+        "src/b/../a.ts",
+        "src/ a.ts/x",
+        "src/a\x00.ts",
+        "x" * 2000,
+    ],
+)
+def test_adversarial_path_corpus_refused(path):
+    with pytest.raises(PathPolicyError):
+        if path.startswith(".git") or path.startswith(".github"):
+            validate_artifact_path(path, "artifacts/thea")
+        else:
+            normalize_repo_path(path)
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["src/a.ts", "a/b/c/d/e.txt", "file-with.many.dots.ts", "unicode/café.ts"],
+)
+def test_legitimate_path_baselines_accepted(path):
+    assert normalize_repo_path(path)
+
+
+def test_positive_containment_is_segment_aware():
+    assert validate_artifact_path("build/report.json", "build") == "build/report.json"
+    with pytest.raises(PathPolicyError):
+        validate_artifact_path("buildother/report.json", "build")
+
+
 def test_traversal_fails_closed():
     result = verify_target(
         manifest(changed_files=[{"path": "src/../../escape.py", "operation": "MODIFY"}])
@@ -53,9 +101,7 @@ def test_destination_collision_fails_closed():
 
 
 def test_verification_artifact_requires_positive_containment():
-    result = verify_target(
-        manifest(verification_artifacts=[".github/workflows/audit.yml"])
-    )
+    result = verify_target(manifest(verification_artifacts=[".github/workflows/audit.yml"]))
     assert "THEA-VERIFY-003" in ids(result)
 
 
@@ -79,3 +125,28 @@ def test_handoff_must_carry_authorization_lineage():
 def test_verification_requires_specific_authorization():
     result = verify_target(manifest(verification_authorized=False))
     assert "THEA-VERIFY-005" in ids(result)
+
+
+def test_probe_harness_requires_accept_baseline():
+    suite = ProbeSuite(schema_validate=lambda value: None)
+    suite.refuse("must refuse", {"bad": True})
+    assert suite.disposition()["verdict"] == "INVALID_RUN_NO_ACCEPT_BASELINE"
+
+
+def test_probe_harness_scores_acceptance_as_hole():
+    suite = ProbeSuite(schema_validate=lambda value: None)
+    suite.refuse("unsafe accepted", {"bad": True}, family="PATH_TRAVERSAL")
+    suite.accept("legitimate baseline", {"ok": True})
+    disposition = suite.disposition()
+    assert disposition["verdict"] == "HOLD"
+    assert disposition["holes"] == ["unsafe accepted"]
+
+
+def test_probe_harness_does_not_count_unexpected_exception_as_refusal():
+    def broken(_value):
+        raise RuntimeError("validator crashed")
+
+    suite = ProbeSuite(schema_validate=broken, refusal_errors=(ValueError,))
+    suite.refuse("crash is not a refusal", {"bad": True})
+    suite.accept("baseline", {"ok": True})
+    assert suite.disposition()["verdict"] == "INVALID_RUN_HARNESS_ERROR"
