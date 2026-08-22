@@ -1,213 +1,243 @@
 # Thea Verifier v0.1
 
 **Status:** implementation proposal on feature branch; not canon, not deployed, not merge-authorized  
-**Authority effect:** NONE  
+**Authority effect:** `NONE`  
 **Repository:** `mirrornode/theia-core`  
-**Operator surface:** MOPCON (read-only projection first)  
+**Operator surface:** MOPCON, read-only projection first  
 **Interpretive layer:** Oracle  
 
 ## 1. Purpose
 
-Thea is MIRRORNODE's owned exact-head verification kernel. It exists so the ability to inspect a change does not depend on an external AI-review quota or vendor-specific review entitlement.
+Thea is MIRRORNODE's owned verification kernel. Its purpose is to make repeatable security and governance review available without depending on a vendor-specific code-review quota.
 
-Thea is intentionally split into two layers:
+Thea is not yet an observed exact-head checkout verifier. v0.1 validates the semantics of a supplied target manifest and requires immutable-form 40-character Git identifiers, but it does not yet prove that the referenced repository checkout actually resolves to those commits. That observed checkout binding is the first open implementation requirement after this proposal.
 
-1. **Deterministic kernel** — exact-head identity, normalized resource denotation, positive containment, collision analysis, evidence reconciliation, authorization-lineage checks, and permanent adversarial regression probes.
-2. **Oracle layer** — a self-hosted model-backed adversarial interpreter that invents additional attacks and synthesizes uncertainty. Oracle may add findings but may not erase deterministic blockers or convert evidence into authority.
+A clean v0.1 result therefore carries the explicit claim limit:
 
-Thea is not a merge bot and is not a constitutional approver.
+`SUPPLIED_MANIFEST_SEMANTICS_ONLY`
 
-## 2. Existing MIRRORNODE contracts used
+It does **not** establish `EXACT_HEAD_REVIEWED`, independent review, constitutional clearance, merge authorization, deployment authorization, or runtime authority.
 
-The implementation follows the current MIRRORNODE direction rather than the older `SYSTEM_CONTRACT.md` runtime registry where those conflict.
+## 2. Architecture
 
-### MICC-derived invariants
+Thea separates deterministic enforcement from model reasoning.
 
-- verification and authorization are separate states;
-- a passing health/conformance check cannot self-authorize;
-- governed invocations fail closed when context, scope, authority, or lifecycle evidence is absent;
-- approval-bearing actions require machine-verifiable approval references;
+### Deterministic kernel
+
+The deterministic layer validates bounded properties that should not depend on model judgment:
+
+- immutable Git identifier shape;
+- strict manifest types and boolean semantics;
+- normalized repository-relative path denotation;
+- bounded file-operation vocabulary;
+- positive verification-artifact containment;
+- separation of verification artifacts from implementation write targets;
+- protected control roots such as `.git` and `.github`;
+- write-target and destination collisions;
+- verification-specific authorization presence;
+- verification external-effect separation;
+- caller-supplied status-path-set agreement;
+- working-directory/report-binding equality;
+- handoff authorization-lineage reference presence;
+- refusal-first adversarial probe scoring.
+
+### Oracle layer
+
+Oracle sits above the deterministic kernel. It receives Thea evidence and asks a locally served model to generate counterexamples, missing probes, uncertainty, and synthesis.
+
+Oracle may add concerns. It may not erase deterministic P1/P2 findings, convert a HOLD into authority, or claim independent provenance when the reviewing model participated in implementation or correction.
+
+The v0.1 model adapter refuses non-loopback endpoints. There is no cloud fallback. A future remote-model adapter would require its own explicitly governed disclosure, credential, transport, and authority boundary.
+
+## 3. MIRRORNODE invariants carried forward
+
+The implementation follows current MIRRORNODE integration and approval semantics rather than treating older runtime descriptions as automatic present authority.
+
+From MICC and related governance work:
+
+- verification and authorization remain separate states;
+- a successful health, conformance, model, or test result does not self-authorize;
+- approval-bearing actions require machine-verifiable approval evidence;
+- requesting, authorizing, and executing identities remain separately attributable;
 - canonical evidence remains MIRRORNODE-owned;
-- requesting, authorizing, and executing identities remain separately attributable.
+- missing or contradictory authority context fails closed.
 
-### PR #53-derived review doctrine
+From the PR #53 review cycle:
 
 - passing tests are evidence, not adversarial completeness;
-- bind review to an immutable full head SHA;
-- attack denotation beneath representation;
-- normalize resource identity before comparison;
-- prefer positive containment over pure exclusion;
-- treat every correction as a new attack surface;
-- preserve reviewer provenance separately from technical usefulness;
-- detect machine/human evidence divergence;
-- explicitly probe validator, CI, policy, and audit self-modification paths;
-- preserve finding lineage across heads.
+- review claims bind to immutable targets;
+- denotation must be attacked beneath representation;
+- resource identities are normalized before equality, uniqueness, or authorization decisions;
+- positive containment is preferred over negative exclusion;
+- every correction is a new attack surface;
+- technical usefulness and provenance independence are separate dimensions;
+- machine-consumed and human-visible evidence must be reconciled;
+- self-modification of validators, CI, policy, review instructions, and evidence is a mandatory attack lens;
+- finding lineage is preserved rather than flattened into resolved/unresolved.
 
-## 3. Current market expectations incorporated
+## 4. Current claim ladder
 
-As of August 2026, mainstream AI code-review products establish several reasonable expectations that Thea should meet or exceed:
+No lower claim implies a higher claim:
 
-- automatic review/re-review on new pushes;
-- repository-wide and path-specific review instructions;
-- use of repository agent instructions and task-specific review skills;
-- tool/MCP context where useful;
-- actionable, file-specific findings;
-- review output that remains advisory rather than silently becoming a required human approval;
-- reproducible evidence and session/attribution visibility.
+`SCHEMA_VALID`
+→ `SEMANTIC_VALID`
+→ `TEST_SUITE_PASS`
+→ `ADVERSARIAL_PROBES_PASS`
+→ `EXACT_HEAD_REVIEWED`
+→ `INDEPENDENT_EXACT_HEAD_REVIEWED`
+→ `CONSTITUTIONALLY_CLEARED`
+→ `MERGE_AUTHORIZED`
 
-Thea extends those expectations with MIRRORNODE-specific requirements: exact-head binding, provenance independence, positive authority containment, deterministic adversarial replay, and no dependency on a vendor review quota.
+Thea v0.1 can contribute to the first four claim levels. Until the checkout-binding adapter exists, it does not itself emit `EXACT_HEAD_REVIEWED`.
 
-## 4. NIST alignment target
+## 5. Deterministic v0.1 checks
 
-Thea does **not** claim NIST certification or compliance by existence. It is designed to produce evidence and operating practices that can support a NIST-aligned secure-development program.
+| Check | Current behavior | Claim limit |
+|---|---|---|
+| Immutable identifier shape | requires full lowercase 40-character head/base SHAs | does not prove commits exist or are checked out |
+| Manifest typing | rejects truthy strings for booleans and malformed arrays/operation records | validates supplied JSON only |
+| Path denotation | rejects traversal, absolute/home/drive-letter forms, control characters, backslashes, dot/empty segments, trailing separators, segment whitespace, overlength paths; NFC-normalizes Unicode | does not yet inspect symlinks/filesystem aliases |
+| Operation vocabulary | accepts only `CREATE`, `MODIFY`, `DELETE`, `MOVE`, `RENAME`, `RESTORE` | does not execute operations |
+| Positive artifact containment | artifacts must be under a declared root | root is supplied manifest evidence |
+| Verification/implementation separation | artifact root and artifacts may not overlap implementation write targets | does not yet derive write scope from an observed Git diff |
+| Protected roots | verification artifacts cannot target `.git` or `.github` | additional project-specific protected roots can be added later |
+| Destination collision | normalized source/destination targets participate in collision detection | filesystem semantics not yet executed |
+| Verification authorization | verification work carrying artifacts/effects requires a verification-specific authorization flag | v0.1 verifies typed presence, not a signed authorization object |
+| External effects | verification external effects force a finding | no provider-side effect execution exists |
+| Status path-set agreement | compares caller-supplied raw-derived and parsed path sets | **does not yet parse raw Git status itself** |
+| Working-directory binding | supplied working directory must equal report-bound directory | does not yet prove either path is the checkout for the target SHA |
+| Handoff lineage | handoff changes require an authorization-scope digest reference | does not yet recompute the digest or prove each changed path was authorized |
 
-### AI RMF 1.0 / NIST AI 600-1
+A P1 or P2 finding returns `HOLD`. A finding-free supplied manifest returns `CLEAR_FOR_INDEPENDENT_REVIEW` with `claim_limit=SUPPLIED_MANIFEST_SEMANTICS_ONLY`.
 
-The architecture maps naturally to the AI RMF functions:
+## 6. Permanent adversarial memory
 
-- **GOVERN:** explicit authority boundaries, provenance, roles, review doctrine, retention of failure history.
-- **MAP:** exact target identity, changed resource surface, external-effect and authority surface mapping.
-- **MEASURE:** deterministic checks, adversarial probes, severity, evidence agreement, regression corpus.
-- **MANAGE:** fail-closed HOLD disposition, bounded next action, regression capture, continuous improvement.
+`thea/adversarial_corpus.json` and `thea/probe_harness.py` are the first executable review-memory layer.
 
-The GenAI Profile is reflected in the explicit handling of model uncertainty, provenance, misuse/abuse surfaces, human oversight, and continuous evaluation.
+The harness uses inverted polarity:
 
-### NIST SP 800-218 SSDF v1.1
+- malicious probes are expected to be refused;
+- acceptance is scored as a hole;
+- unexpected exceptions are harness-integrity errors, not successful refusals;
+- a clean adversarial run is invalid unless legitimate accept baselines were also exercised.
 
-Thea supports SSDF outcomes by:
+The initial permanent corpus includes:
 
-- preserving and protecting software-development evidence;
-- enforcing repeatable verification tasks;
-- checking source integrity and exact immutable targets;
-- identifying vulnerabilities and unsafe design conditions before release;
-- converting escaped defects into regression tests to address root causes;
-- separating development/correction from independent verification evidence.
-
-NIST published SP 800-218 Rev. 1 / SSDF v1.2 as an initial public draft in December 2025. Until it is final, Thea treats v1.1 as the final baseline and tracks the v1.2 draft as a forward-compatibility target.
-
-### NIST SP 800-218A
-
-Because Thea uses an AI model in the Oracle layer, model-specific secure-development and acquisition considerations are treated as part of the system lifecycle rather than as an exception to ordinary software security.
-
-### NIST CSF 2.0
-
-Thea's evidence model is compatible with the CSF 2.0 emphasis on governance and risk communication. Thea findings are designed to be consumable as governed evidence rather than opaque model output.
-
-## 5. The deterministic kernel
-
-Current v0.1 checks:
-
-| Check | Behavior |
-|---|---|
-| Exact-head identity | requires full immutable head and base SHAs |
-| Path denotation | rejects absolute, traversal, dot, empty, backslash, control-character, and trailing-separator paths |
-| Positive artifact containment | verification artifacts must be under a declared root |
-| Protected control roots | `.git` and `.github` are not valid verification artifact roots/targets |
-| Destination collision | all normalized write targets participate in collision analysis |
-| Verification external effects | inherited external effects fail closed |
-| Verification authorization | implementation authority does not imply verification authority |
-| Raw/parsed agreement | human-visible and machine-consumed path evidence must agree |
-| Working-directory binding | execution checkout must match report-bound checkout |
-| Handoff lineage | changed-path handoff requires carried authorization-scope evidence |
-
-A P1 or P2 produces `HOLD`.
-
-A clean deterministic result produces only `CLEAR_FOR_INDEPENDENT_REVIEW` — never `APPROVED`, `AUTHORIZED`, or `MERGE`.
-
-## 6. Oracle layer
-
-Oracle is above, not inside, the deterministic trust boundary.
-
-Oracle receives:
-
-- immutable target identity;
-- deterministic findings;
-- checks run;
-- optional architecture/review context;
-- standing MIRRORNODE review doctrine.
-
-Oracle is instructed to:
-
-- construct counterexamples;
-- identify missing probe classes;
-- challenge newly introduced boundaries;
-- identify prose-vs-machine divergence;
-- identify self-modification surfaces;
-- state uncertainty;
-- preserve provenance limitations.
-
-Oracle cannot:
-
-- erase deterministic findings;
-- convert HOLD to authorization;
-- claim independent provenance when contaminated;
-- invoke a cloud fallback when the local model is absent.
-
-The initial adapter targets an operator-owned OpenAI-compatible endpoint at `127.0.0.1` and can therefore sit behind Ollama, vLLM, llama.cpp-compatible gateways, or another locally controlled serving layer without changing Thea semantics.
-
-## 7. Permanent adversarial memory
-
-`thea/adversarial_corpus.json` is the seed review-memory corpus.
-
-Serious escaped defects are never merely closed. They become permanent probes.
-
-The initial corpus includes the PR #53 families for:
-
-- traversal;
-- protected control paths;
-- path control characters;
-- trailing separators;
-- artifact-root escape;
-- destination collision;
-- raw/parsed divergence;
+- traversal and path aliases;
+- protected `.git` / `.github` targets;
+- verification artifact-root escape;
+- validator/CI self-modification;
+- duplicate MOVE destinations and source/destination collisions;
+- status-evidence divergence;
 - verification external effects;
-- handoff lineage;
 - verification-specific authorization;
-- working-directory binding.
+- handoff authorization lineage;
+- working-directory binding;
+- authorization revocation, supersession, and expiry lessons retained from PR #53;
+- positive legitimate baselines.
 
-## 8. MOPCON projection contract
+Once a serious escaped defect is learned, the intended rule is that it becomes cheap to test forever.
 
-The first MOPCON integration should remain read-only.
+## 7. Full-review corrections already made
 
-MOPCON may display:
+The first internal review of Thea found several defects or overclaims in Thea itself. They are retained as review lineage rather than erased:
 
-- repository;
-- exact head/base;
+- **Harness disposition precedence:** an unexpected validator exception initially lost precedence to the missing-accept-baseline condition. Fixed so `INVALID_RUN_HARNESS_ERROR` dominates scoreability.
+- **Operation vocabulary:** arbitrary operation names initially passed through the semantic kernel. Fixed with a bounded six-operation vocabulary.
+- **Artifact-root overlap:** positive containment initially did not also reject an artifact root covering implementation write targets. Fixed.
+- **Manifest booleans:** Python truthiness would have interpreted the string `"false"` as true. Fixed with strict boolean parsing.
+- **Model egress:** the environment variable for the Oracle endpoint could have pointed to a remote service despite the documentation describing a local-only model. Fixed by enforcing loopback endpoints in v0.1.
+- **Exact-head overclaim:** SHA shape was described too strongly as observed exact-head identity. Documentation and check naming corrected; checkout proof remains open.
+- **Raw-status overclaim:** supplied path-set comparison was described too strongly as raw/parsed reconciliation. Documentation and check naming corrected; raw Git-status parsing remains open.
+- **Handoff lineage depth:** current check verifies only lineage-reference presence. Cryptographic recomputation and path authorization remain open.
+
+## 8. MOPCON projection boundary
+
+The first MOPCON integration remains read-only.
+
+MOPCON may project:
+
+- repository and supplied head/base identifiers;
+- whether checkout binding has been independently observed;
 - deterministic verdict;
+- claim limit;
 - P1/P2/P3 counts;
-- checks run;
-- Oracle availability;
-- Oracle additional-risk synthesis;
-- provenance state;
-- next action required.
+- checks actually run;
+- adversarial corpus coverage;
+- Oracle availability and additional-risk synthesis;
+- reviewer provenance / independence state;
+- finding lineage;
+- next lawful action.
 
 MOPCON must not infer authorization from a Thea pass.
 
-Recommended operator labels:
+Recommended operator labels include:
 
 - `HOLD`
-- `CLEAR FOR INDEPENDENT REVIEW`
+- `MANIFEST CHECKS CLEAR`
+- `EXACT-HEAD BINDING PENDING`
 - `INDEPENDENT REVIEW PENDING`
 - `CONSTITUTIONAL CONFIRMATION PENDING`
 - `OPERATOR DISPOSITION REQUIRED`
 
-## 9. Next implementation slices
+## 9. NIST alignment target
 
-1. Bind Thea directly to Git/GitHub exact-head checkout and diff acquisition.
-2. Add deterministic repository tree containment and symlink escape checks in an isolated checkout.
-3. Add schema/state-machine fuzzing adapters.
-4. Add AST-aware self-modification detection for validators, policy, CI, and review instructions.
-5. Run the permanent corpus automatically against every correction head.
-6. Add reviewer provenance ledger and finding lineage store.
-7. Add read-only MOPCON projection.
-8. Benchmark candidate local review models against the permanent corpus before designating a default Oracle model.
+Thea makes no claim of NIST certification or compliance merely by existing. It is designed to produce auditable engineering evidence that can support a NIST-aligned secure-development and AI-risk program.
 
-## 10. References
+### AI RMF
 
-- NIST AI RMF 1.0 — NIST AI 100-1
-- NIST AI RMF Generative AI Profile — NIST AI 600-1
-- NIST SP 800-218 — Secure Software Development Framework v1.1 (final)
-- NIST SP 800-218A — Secure Software Development Practices for Generative AI and Dual-Use Foundation Models (final)
-- NIST SP 800-218 Rev. 1 — SSDF v1.2 (initial public draft, December 2025)
+NIST AI 100-1, AI RMF 1.0, remains the published framework while NIST is working on a revision. Thea maps naturally to its `GOVERN`, `MAP`, `MEASURE`, and `MANAGE` functions through explicit authority boundaries, target/scope mapping, repeatable measurements and probes, fail-closed dispositions, and continuous regression capture.
+
+NIST AI 600-1, the Generative AI Profile, is used as a companion reference for model-specific uncertainty, misuse/abuse surfaces, provenance, human oversight, and continuous evaluation.
+
+### SSDF
+
+NIST SP 800-218 SSDF v1.1 remains final. Thea supports its direction by protecting development evidence, making verification repeatable, preserving provenance, identifying vulnerabilities before release, and turning escaped defects into root-cause regression tests.
+
+NIST SP 800-218A is final and augments SSDF v1.1 with AI-model-specific secure-development practices; it is relevant to Oracle model selection, serving, evaluation, provenance, and acquisition.
+
+NIST SP 800-218 Rev. 1 / SSDF v1.2 is an initial public draft released December 17, 2025. Thea tracks it as a forward-compatibility reference, not as the final controlling SSDF baseline.
+
+### CSF 2.0
+
+Thea's evidence and disposition model is compatible with the CSF 2.0 emphasis on governance, risk communication, and evidence-backed risk management.
+
+## 10. Current market expectations
+
+Contemporary AI code-review systems make automatic re-review, repository/path instructions, agent instructions, tool/MCP context, file-specific findings, and review-session attribution reasonable baseline expectations.
+
+Thea's differentiators are intended to be:
+
+- owned availability rather than vendor review quota;
+- deterministic refusal checks below model reasoning;
+- exact target / provenance claim separation;
+- permanent adversarial memory;
+- explicit authority non-escalation;
+- failure-lineage preservation;
+- MOPCON projection of what is known, unknown, and still unauthorized.
+
+## 11. Next implementation slices
+
+Priority order after v0.1 review:
+
+1. observed local Git checkout binding: repository identity, exact HEAD, base existence, diff acquisition;
+2. raw `git status --porcelain=v1 -z` parsing and exact structural reconciliation;
+3. cryptographic authorization-scope digest recomputation and handoff-path reconciliation;
+4. symlink and repository-tree escape detection in isolated checkout;
+5. schema/state-machine fuzzing adapters;
+6. AST-aware self-modification detection for validators, policy, CI, and review instructions;
+7. automatic corpus execution against every correction head;
+8. reviewer-provenance ledger and finding-lineage store;
+9. read-only MOPCON projection;
+10. benchmark candidate local models against the permanent corpus before designating a default Oracle model.
+
+## 12. Reference set
+
+- NIST AI 100-1 — Artificial Intelligence Risk Management Framework (AI RMF 1.0)
+- NIST AI 600-1 — Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile
+- NIST SP 800-218 — Secure Software Development Framework v1.1 (Final)
+- NIST SP 800-218A — Secure Software Development Practices for Generative AI and Dual-Use Foundation Models (Final)
+- NIST SP 800-218 Rev. 1 — SSDF v1.2 (Initial Public Draft, 2025-12-17)
 - NIST Cybersecurity Framework 2.0
-- GitHub Copilot Code Review documentation (current market reference for automatic re-review, custom instructions, agent skills, MCP context, and advisory review semantics)
+- MIRRORNODE MICC v0.1 and current approval/governance evidence
+- PR #53 exact-head adversarial review and retained review-memory corpus
