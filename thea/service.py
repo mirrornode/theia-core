@@ -83,14 +83,21 @@ class TheaHandler(BaseHTTPRequestHandler):
 def main() -> int:
     parser = argparse.ArgumentParser(description="Serve Thea on a bounded local HTTP interface")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=7710)
+    parser.add_argument(
+        "--port",
+        type=int,
+        required=True,
+        help="Explicit local port selected by the Operator; Thea does not self-register a canonical port.",
+    )
     args = parser.parse_args()
 
     if args.host not in {"127.0.0.1", "::1", "localhost"}:
         raise SystemExit("Thea v0.1 refuses non-loopback binding; add an authenticated gateway before remote exposure.")
+    if not 1 <= args.port <= 65535:
+        raise SystemExit("port must be between 1 and 65535")
 
     server = ThreadingHTTPServer((args.host, args.port), TheaHandler)
-    print(f"Thea v0.1 listening on http://{args.host}:{args.port} (authority_effect=NONE)")
+    print(f"Thea v0.1 listening on loopback (authority_effect=NONE)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
