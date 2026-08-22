@@ -1,39 +1,61 @@
 from __future__ import annotations
 
 import posixpath
-import re
+import unicodedata
 
-_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 PROTECTED_ROOTS = (".git", ".github")
+_MAX_PATH_BYTES = 1024
 
 
 class PathPolicyError(ValueError):
-    pass
+    """A path does not provably denote a bounded resource inside the repository."""
 
 
 def normalize_repo_path(path: str) -> str:
-    """Return a canonical repository-relative POSIX path or fail closed."""
-    if not isinstance(path, str) or not path:
-        raise PathPolicyError("path must be a non-empty string")
-    if _CONTROL.search(path):
-        raise PathPolicyError("control characters are forbidden")
+    """Return the canonical repository-relative POSIX identity or fail closed.
+
+    The returned identity, never the caller's original spelling, is the value
+    that should participate in comparisons, uniqueness checks, and digests.
+    """
+    if not isinstance(path, str):
+        raise PathPolicyError(f"path must be a string, got {type(path).__name__}")
+    if path == "":
+        raise PathPolicyError("path is empty")
+    if len(path.encode("utf-8")) > _MAX_PATH_BYTES:
+        raise PathPolicyError("path exceeds maximum length")
+    for ch in path:
+        if ord(ch) < 0x20 or ord(ch) == 0x7F:
+            raise PathPolicyError(f"path contains control character {ord(ch):#04x}")
     if "\\" in path:
-        raise PathPolicyError("backslashes are forbidden; use repository-relative POSIX paths")
+        raise PathPolicyError("path contains a backslash")
     if path.startswith("/"):
-        raise PathPolicyError("absolute paths are forbidden")
+        raise PathPolicyError("path is absolute")
+    if path.startswith("~"):
+        raise PathPolicyError("path is home-relative")
+    if len(path) >= 2 and path[1] == ":":
+        raise PathPolicyError("path carries a drive letter")
     if path.endswith("/"):
-        raise PathPolicyError("trailing separators are forbidden")
+        raise PathPolicyError("path has a trailing separator and denotes no file")
 
-    parts = path.split("/")
-    if any(part in {"", ".", ".."} for part in parts):
-        raise PathPolicyError("empty, '.' and '..' path segments are forbidden")
+    normalized = unicodedata.normalize("NFC", path)
+    segments = normalized.split("/")
+    if any(segment == "" for segment in segments):
+        raise PathPolicyError("path contains an empty segment")
+    if any(segment == "." for segment in segments):
+        raise PathPolicyError("path contains a '.' segment")
+    if any(segment == ".." for segment in segments):
+        raise PathPolicyError("path contains a '..' segment")
+    if any(segment in {" ", "\t"} or segment != segment.strip() for segment in segments):
+        raise PathPolicyError("path segment has leading or trailing whitespace")
 
-    normalized = posixpath.normpath(path)
-    if normalized != path:
-        raise PathPolicyError("path must already be in canonical normalized form")
-    if normalized == ".." or normalized.startswith("../"):
+    canonical = posixpath.normpath(normalized)
+    if canonical != normalized:
+        raise PathPolicyError(
+            f"path is not canonical ({normalized!r} normalizes to {canonical!r})"
+        )
+    if canonical.startswith("..") or posixpath.isabs(canonical):
         raise PathPolicyError("path escapes repository root")
-    return normalized
+    return canonical
 
 
 def is_within(path: str, root: str) -> bool:
@@ -44,7 +66,22 @@ def is_within(path: str, root: str) -> bool:
 
 def is_protected(path: str) -> bool:
     normalized = normalize_repo_path(path)
-    return any(normalized == root or normalized.startswith(root + "/") for root in PROTECTED_ROOTS)
+    head = normalized.split("/", 1)[0]
+    return head in PROTECTED_ROOTS
+
+
+def check_unique_identities(paths: list[str] | tuple[str, ...], *, label: str = "paths") -> list[str]:
+    seen: dict[str, str] = {}
+    canonical_paths: list[str] = []
+    for raw in paths:
+        canonical = normalize_repo_path(raw)
+        if canonical in seen:
+            raise PathPolicyError(
+                f"{label}: {raw!r} and {seen[canonical]!r} denote the same resource {canonical!r}"
+            )
+        seen[canonical] = raw
+        canonical_paths.append(canonical)
+    return canonical_paths
 
 
 def validate_artifact_path(path: str, artifact_root: str) -> str:
