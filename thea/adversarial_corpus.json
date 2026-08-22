@@ -1,0 +1,73 @@
+{
+  "corpus_version": "0.1.0",
+  "origin": "PR #53 review failure-and-learning cycle",
+  "principle": "Once learned, escaped defect classes become permanent cheap probes.",
+  "probe_classes": [
+    {
+      "id": "PATH_TRAVERSAL",
+      "severity": "P1",
+      "examples": ["../../other-repo/secret.ts", "src/../../escape.ts", "a/../../../etc/passwd"],
+      "expected": "REFUSE"
+    },
+    {
+      "id": "PROTECTED_CONTROL_ROOT",
+      "severity": "P1",
+      "examples": [".git/config", ".github/workflows/audit.yml"],
+      "expected": "REFUSE"
+    },
+    {
+      "id": "CONTROL_CHARACTER_PATH",
+      "severity": "P1",
+      "examples": ["src/x\ny.ts"],
+      "expected": "REFUSE"
+    },
+    {
+      "id": "TRAILING_SEPARATOR_PATH",
+      "severity": "P2",
+      "examples": ["src/dir/"],
+      "expected": "REFUSE"
+    },
+    {
+      "id": "ARTIFACT_ROOT_ESCAPE",
+      "severity": "P1",
+      "examples": ["scripts/validate_terminal_agent_assignment.py", "AGENTS.md"],
+      "expected": "REFUSE_UNLESS_POSITIVELY_CONTAINED"
+    },
+    {
+      "id": "DESTINATION_COLLISION",
+      "severity": "P2",
+      "examples": ["two MOVE operations share one destination", "MOVE destination is also DELETE source"],
+      "expected": "REFUSE"
+    },
+    {
+      "id": "RAW_PARSED_STATUS_DIVERGENCE",
+      "severity": "P2",
+      "examples": ["raw status names a different path than parsed status"],
+      "expected": "REFUSE"
+    },
+    {
+      "id": "VERIFICATION_EXTERNAL_EFFECT",
+      "severity": "P2",
+      "examples": ["POST https://prod.example.com/deploy"],
+      "expected": "REFUSE_WITHOUT_SEPARATE_EFFECT_AUTHORIZATION"
+    },
+    {
+      "id": "HANDOFF_LINEAGE_GAP",
+      "severity": "P2",
+      "examples": ["handoff changed_paths present without carried authorization scope digest"],
+      "expected": "REFUSE"
+    },
+    {
+      "id": "VERIFICATION_AUTHORIZATION_GAP",
+      "severity": "P2",
+      "examples": ["verification relies only on implementation authorization"],
+      "expected": "REFUSE"
+    },
+    {
+      "id": "WORKING_DIRECTORY_BINDING_GAP",
+      "severity": "P2",
+      "examples": ["execution working directory differs from report-bound directory"],
+      "expected": "REFUSE"
+    }
+  ]
+}
