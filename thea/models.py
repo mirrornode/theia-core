@@ -24,6 +24,61 @@ class FileOperation:
     destination_path: str | None = None
 
 
+def _required_string(value: dict[str, Any], key: str) -> str:
+    item = value.get(key)
+    if not isinstance(item, str) or not item:
+        raise ValueError(f"{key} must be a non-empty string")
+    return item
+
+
+def _optional_string(value: dict[str, Any], key: str) -> str | None:
+    item = value.get(key)
+    if item is None:
+        return None
+    if not isinstance(item, str) or not item:
+        raise ValueError(f"{key} must be null or a non-empty string")
+    return item
+
+
+def _string_tuple(value: dict[str, Any], key: str) -> tuple[str, ...]:
+    item = value.get(key, [])
+    if not isinstance(item, (list, tuple)):
+        raise ValueError(f"{key} must be an array of strings")
+    if any(not isinstance(entry, str) or not entry for entry in item):
+        raise ValueError(f"{key} must contain only non-empty strings")
+    return tuple(item)
+
+
+def _strict_bool(value: dict[str, Any], key: str, default: bool = False) -> bool:
+    item = value.get(key, default)
+    if type(item) is not bool:
+        raise ValueError(f"{key} must be a boolean")
+    return item
+
+
+def _operations(value: dict[str, Any]) -> tuple[FileOperation, ...]:
+    raw = value.get("changed_files", [])
+    if not isinstance(raw, (list, tuple)):
+        raise ValueError("changed_files must be an array")
+    operations: list[FileOperation] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"changed_files[{index}] must be an object")
+        path = item.get("path")
+        operation = item.get("operation")
+        destination = item.get("destination_path")
+        if not isinstance(path, str) or not path:
+            raise ValueError(f"changed_files[{index}].path must be a non-empty string")
+        if not isinstance(operation, str) or not operation:
+            raise ValueError(f"changed_files[{index}].operation must be a non-empty string")
+        if destination is not None and (not isinstance(destination, str) or not destination):
+            raise ValueError(
+                f"changed_files[{index}].destination_path must be null or a non-empty string"
+            )
+        operations.append(FileOperation(path=path, operation=operation, destination_path=destination))
+    return tuple(operations)
+
+
 @dataclass(frozen=True)
 class TargetManifest:
     repository: str
@@ -43,29 +98,27 @@ class TargetManifest:
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "TargetManifest":
-        operations = tuple(
-            FileOperation(
-                path=item["path"],
-                operation=item["operation"],
-                destination_path=item.get("destination_path"),
-            )
-            for item in value.get("changed_files", [])
-        )
+        if not isinstance(value, dict):
+            raise ValueError("manifest must be an object")
         return cls(
-            repository=value["repository"],
-            head_sha=value["head_sha"],
-            base_sha=value["base_sha"],
-            changed_files=operations,
-            verification_artifacts=tuple(value.get("verification_artifacts", [])),
-            verification_artifact_root=value.get("verification_artifact_root"),
-            external_effects=tuple(value.get("external_effects", [])),
-            working_directory=value.get("working_directory"),
-            report_binding_working_directory=value.get("report_binding_working_directory"),
-            verification_authorized=bool(value.get("verification_authorized", False)),
-            handoff_authorized_scope_digest=value.get("handoff_authorized_scope_digest"),
-            handoff_changed_paths=tuple(value.get("handoff_changed_paths", [])),
-            raw_status_paths=tuple(value.get("raw_status_paths", [])),
-            parsed_status_paths=tuple(value.get("parsed_status_paths", [])),
+            repository=_required_string(value, "repository"),
+            head_sha=_required_string(value, "head_sha"),
+            base_sha=_required_string(value, "base_sha"),
+            changed_files=_operations(value),
+            verification_artifacts=_string_tuple(value, "verification_artifacts"),
+            verification_artifact_root=_optional_string(value, "verification_artifact_root"),
+            external_effects=_string_tuple(value, "external_effects"),
+            working_directory=_optional_string(value, "working_directory"),
+            report_binding_working_directory=_optional_string(
+                value, "report_binding_working_directory"
+            ),
+            verification_authorized=_strict_bool(value, "verification_authorized"),
+            handoff_authorized_scope_digest=_optional_string(
+                value, "handoff_authorized_scope_digest"
+            ),
+            handoff_changed_paths=_string_tuple(value, "handoff_changed_paths"),
+            raw_status_paths=_string_tuple(value, "raw_status_paths"),
+            parsed_status_paths=_string_tuple(value, "parsed_status_paths"),
         )
 
 
@@ -90,6 +143,7 @@ class ReviewResult:
     checks_run: tuple[str, ...]
     verdict: Verdict
     authority_effect: str = "NONE"
+    claim_limit: str = "SUPPLIED_MANIFEST_SEMANTICS_ONLY"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -98,4 +152,5 @@ class ReviewResult:
             "checks_run": list(self.checks_run),
             "verdict": self.verdict.value,
             "authority_effect": self.authority_effect,
+            "claim_limit": self.claim_limit,
         }
