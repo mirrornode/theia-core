@@ -71,10 +71,13 @@ class ProbeSuite:
         baselines = [result for result in self.results if result.expected == "ACCEPTED"]
         families = sorted({result.family for result in self.results if result.family})
 
-        if not baselines:
-            verdict = "INVALID_RUN_NO_ACCEPT_BASELINE"
-        elif self.errors:
+        # Harness integrity dominates scoreability. If the validator crashed in
+        # an unrecognized way, that run is invalid regardless of whether an
+        # accept baseline was successfully recorded.
+        if self.errors:
             verdict = "INVALID_RUN_HARNESS_ERROR"
+        elif not baselines:
+            verdict = "INVALID_RUN_NO_ACCEPT_BASELINE"
         elif broken:
             verdict = "BROKEN_VALID_INPUT_REFUSED"
         elif holes:
